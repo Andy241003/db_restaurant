@@ -3,7 +3,7 @@ Restaurant Promotions API endpoints.
 
 Handles restaurant promotions and special offers with multi-language support
 """
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -53,15 +53,15 @@ class CafePromotionResponse(BaseModel):
     discount_value: Optional[float] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    applicable_menu_items: Optional[dict] = None
-    applicable_categories: Optional[dict] = None
-    applicable_branches: Optional[dict] = None
+    applicable_menu_items: Optional[Any] = None
+    applicable_categories: Optional[Any] = None
+    applicable_branches: Optional[Any] = None
     min_purchase_amount: Optional[float] = None
     primary_image_media_id: Optional[int] = None
     is_active: bool = True
     is_featured: bool = False
     display_order: int = 0
-    attributes_json: Optional[dict] = None
+    attributes_json: Optional[Any] = None
     translations: List[PromotionTranslationSchema] = []
     media: List[PromotionMediaSchema] = []
 
@@ -73,15 +73,15 @@ class CafePromotionCreate(BaseModel):
     discount_value: Optional[float] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    applicable_menu_items: Optional[dict] = None
-    applicable_categories: Optional[dict] = None
-    applicable_branches: Optional[dict] = None
+    applicable_menu_items: Optional[Any] = None
+    applicable_categories: Optional[Any] = None
+    applicable_branches: Optional[Any] = None
     min_purchase_amount: Optional[float] = None
     primary_image_media_id: Optional[int] = None
     is_active: bool = True
     is_featured: bool = False
     display_order: int = 0
-    attributes_json: Optional[dict] = None
+    attributes_json: Optional[Any] = None
     translations: List[PromotionTranslationSchema]
     media_ids: Optional[List[int]] = None
 
@@ -93,15 +93,15 @@ class CafePromotionUpdate(BaseModel):
     discount_value: Optional[float] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    applicable_menu_items: Optional[dict] = None
-    applicable_categories: Optional[dict] = None
-    applicable_branches: Optional[dict] = None
+    applicable_menu_items: Optional[Any] = None
+    applicable_categories: Optional[Any] = None
+    applicable_branches: Optional[Any] = None
     min_purchase_amount: Optional[float] = None
     primary_image_media_id: Optional[int] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
     display_order: Optional[int] = None
-    attributes_json: Optional[dict] = None
+    attributes_json: Optional[Any] = None
     translations: Optional[List[PromotionTranslationSchema]] = None
     media_ids: Optional[List[int]] = None
 
