@@ -347,6 +347,18 @@ def delete_space(
         raise HTTPException(status_code=404, detail="Space not found")
     
     space_name = space.code
+
+    for existing_trans in db.exec(
+        select(CafeSpaceTranslation).where(CafeSpaceTranslation.space_id == space_id)
+    ).all():
+        db.delete(existing_trans)
+
+    for existing_media in db.exec(
+        select(CafeSpaceMedia).where(CafeSpaceMedia.space_id == space_id)
+    ).all():
+        db.delete(existing_media)
+
+    db.flush()
     db.delete(space)
     db.commit()
 

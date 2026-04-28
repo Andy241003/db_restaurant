@@ -385,6 +385,18 @@ def delete_event(
         raise HTTPException(status_code=404, detail="Event not found")
     
     event_title = event.code
+
+    for existing_trans in db.exec(
+        select(CafeEventTranslation).where(CafeEventTranslation.event_id == event_id)
+    ).all():
+        db.delete(existing_trans)
+
+    for existing_media in db.exec(
+        select(CafeEventMedia).where(CafeEventMedia.event_id == event_id)
+    ).all():
+        db.delete(existing_media)
+
+    db.flush()
     db.delete(event)
     db.commit()
 

@@ -296,6 +296,15 @@ def delete_content_section(
         raise HTTPException(status_code=404, detail="Content section not found")
     
     section_title = section.section_type
+
+    for existing_trans in db.exec(
+        select(CafeContentSectionTranslation).where(
+            CafeContentSectionTranslation.section_id == section_id
+        )
+    ).all():
+        db.delete(existing_trans)
+
+    db.flush()
     db.delete(section)
     db.commit()
 

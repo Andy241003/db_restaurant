@@ -465,6 +465,18 @@ def delete_branch(
         raise HTTPException(status_code=404, detail="Branch not found")
     
     branch_name = branch.name or branch.code
+
+    for existing_trans in db.exec(
+        select(CafeBranchTranslation).where(CafeBranchTranslation.branch_id == branch_id)
+    ).all():
+        db.delete(existing_trans)
+
+    for existing_media in db.exec(
+        select(CafeBranchMedia).where(CafeBranchMedia.branch_id == branch_id)
+    ).all():
+        db.delete(existing_media)
+
+    db.flush()
     db.delete(branch)
     db.commit()
 

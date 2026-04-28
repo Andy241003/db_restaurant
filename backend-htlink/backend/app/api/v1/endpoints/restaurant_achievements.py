@@ -365,6 +365,22 @@ def delete_achievement(
         raise HTTPException(status_code=404, detail="Achievement not found")
 
     achievement_title = achievement.code
+
+    for existing_trans in db.exec(
+        select(CafeAchievementTranslation).where(
+            CafeAchievementTranslation.achievement_id == achievement_id
+        )
+    ).all():
+        db.delete(existing_trans)
+
+    for existing_media in db.exec(
+        select(CafeAchievementMedia).where(
+            CafeAchievementMedia.achievement_id == achievement_id
+        )
+    ).all():
+        db.delete(existing_media)
+
+    db.flush()
     db.delete(achievement)
     db.commit()
 

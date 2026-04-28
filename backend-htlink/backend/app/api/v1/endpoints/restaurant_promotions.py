@@ -388,6 +388,22 @@ def delete_promotion(
         raise HTTPException(status_code=404, detail="Promotion not found")
     
     promo_title = promotion.code
+
+    for existing_trans in db.exec(
+        select(CafePromotionTranslation).where(
+            CafePromotionTranslation.promotion_id == promotion_id
+        )
+    ).all():
+        db.delete(existing_trans)
+
+    for existing_media in db.exec(
+        select(CafePromotionMedia).where(
+            CafePromotionMedia.promotion_id == promotion_id
+        )
+    ).all():
+        db.delete(existing_media)
+
+    db.flush()
     db.delete(promotion)
     db.commit()
 

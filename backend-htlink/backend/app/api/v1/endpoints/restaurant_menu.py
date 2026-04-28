@@ -396,16 +396,27 @@ def delete_category(
     if not category or category.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="Category not found")
     
-    # Check if has items
-    items_count = db.exec(
+    items = db.exec(
         select(CafeMenuItem).where(CafeMenuItem.category_id == category_id)
     ).all()
-    
-    if items_count:
-        raise HTTPException(
-            status_code=400, 
-            detail="Cannot delete category with menu items. Please delete or move items first."
-        )
+
+    for item in items:
+        for item_translation in db.exec(
+            select(CafeMenuItemTranslation).where(
+                CafeMenuItemTranslation.item_id == item.id
+            )
+        ).all():
+            db.delete(item_translation)
+
+        for item_media in db.exec(
+            select(CafeMenuItemMedia).where(
+                CafeMenuItemMedia.item_id == item.id
+            )
+        ).all():
+            db.delete(item_media)
+
+        db.flush()
+        db.delete(item)
 
     category_name = category.code
     translations = db.exec(
@@ -708,6 +719,22 @@ def delete_menu_item(
         raise HTTPException(status_code=404, detail="Menu item not found")
     
     item_name = item.code
+
+    for existing_trans in db.exec(
+        select(CafeMenuItemTranslation).where(
+            CafeMenuItemTranslation.item_id == item_id
+        )
+    ).all():
+        db.delete(existing_trans)
+
+    for existing_media in db.exec(
+        select(CafeMenuItemMedia).where(
+            CafeMenuItemMedia.item_id == item_id
+        )
+    ).all():
+        db.delete(existing_media)
+
+    db.flush()
     db.delete(item)
     db.commit()
 

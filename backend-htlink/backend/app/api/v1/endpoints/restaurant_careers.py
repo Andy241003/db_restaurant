@@ -407,6 +407,18 @@ def delete_career(
         raise HTTPException(status_code=404, detail="Career posting not found")
     
     career_title = career.code
+
+    for existing_trans in db.exec(
+        select(CafeCareerTranslation).where(CafeCareerTranslation.career_id == career_id)
+    ).all():
+        db.delete(existing_trans)
+
+    for existing_media in db.exec(
+        select(CafeCareerMedia).where(CafeCareerMedia.career_id == career_id)
+    ).all():
+        db.delete(existing_media)
+
+    db.flush()
     db.delete(career)
     db.commit()
 
