@@ -11,8 +11,20 @@ from pydantic import BaseModel
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models.restaurant import CafeSettings, CafePageSettings
+from app.utils.vr360 import _get_normalized_sections_bucket
 
 router = APIRouter()
+
+VR360_SETTINGS_KEY_MAP = {
+    'menu': ('menu_vr360_link', 'menu_vr_title'),
+    'events': ('events_vr360_link', 'events_vr_title'),
+    'careers': ('careers_vr360_link', 'careers_vr_title'),
+    'promotions': ('promotions_vr360_link', 'promotions_vr_title'),
+    'branches': ('branches_vr360_link', 'branches_vr_title'),
+    'achievements': ('achievements_vr360_link', 'achievements_vr_title'),
+    'spaces': ('spaces_vr360_link', 'spaces_vr_title'),
+    'contact': ('vr360_link', 'vr_title'),
+}
 
 
 # ==========================================
@@ -158,11 +170,34 @@ def create_or_update_restaurant_settings(
     existing = get_restaurant_settings_record(db, current_user.tenant_id)
 
     if existing:
-        for key, value in settings_data.model_dump(exclude_unset=True).items():
+        incoming_payload = settings_data.model_dump(exclude_unset=True)
+        for key, value in incoming_payload.items():
             if hasattr(existing, key):
                 setattr(existing, key, value)
                 if key in ['business_hours', 'settings_json']:
                     flag_modified(existing, key)
+
+        if isinstance(incoming_payload.get('settings_json'), dict):
+            settings_json = existing.settings_json or {}
+            sections_bucket = _get_normalized_sections_bucket(settings_json)
+            for section_code, (legacy_link_key, legacy_title_key) in VR360_SETTINGS_KEY_MAP.items():
+                section_state = sections_bucket.get(section_code)
+                if not isinstance(section_state, dict):
+                    section_state = {}
+                if legacy_link_key in incoming_payload['settings_json']:
+                    section_state['vr360_link'] = incoming_payload['settings_json'].get(legacy_link_key)
+                if legacy_title_key in incoming_payload['settings_json']:
+                    section_state['vr_title'] = incoming_payload['settings_json'].get(legacy_title_key)
+                if f'{section_code}_target_id' in incoming_payload['settings_json']:
+                    section_state['target_id'] = incoming_payload['settings_json'].get(f'{section_code}_target_id')
+                if f'{section_code}_panorama_url' in incoming_payload['settings_json']:
+                    section_state['panorama_url'] = incoming_payload['settings_json'].get(f'{section_code}_panorama_url')
+                if f'{section_code}_title_translations' in incoming_payload['settings_json']:
+                    section_state['title_translations'] = incoming_payload['settings_json'].get(f'{section_code}_title_translations')
+                if section_state:
+                    sections_bucket[section_code] = section_state
+            existing.settings_json = settings_json
+            flag_modified(existing, 'settings_json')
 
         db.add(existing)
         db.commit()
@@ -170,6 +205,24 @@ def create_or_update_restaurant_settings(
         return to_restaurant_settings_response(existing, current_user.tenant_id)
 
     settings_dict = settings_data.model_dump(exclude_unset=True)
+    if isinstance(settings_dict.get('settings_json'), dict):
+        sections_bucket = _get_normalized_sections_bucket(settings_dict['settings_json'])
+        for section_code, (legacy_link_key, legacy_title_key) in VR360_SETTINGS_KEY_MAP.items():
+            section_state = sections_bucket.get(section_code)
+            if not isinstance(section_state, dict):
+                section_state = {}
+            if legacy_link_key in settings_dict['settings_json']:
+                section_state['vr360_link'] = settings_dict['settings_json'].get(legacy_link_key)
+            if legacy_title_key in settings_dict['settings_json']:
+                section_state['vr_title'] = settings_dict['settings_json'].get(legacy_title_key)
+            if f'{section_code}_target_id' in settings_dict['settings_json']:
+                section_state['target_id'] = settings_dict['settings_json'].get(f'{section_code}_target_id')
+            if f'{section_code}_panorama_url' in settings_dict['settings_json']:
+                section_state['panorama_url'] = settings_dict['settings_json'].get(f'{section_code}_panorama_url')
+            if f'{section_code}_title_translations' in settings_dict['settings_json']:
+                section_state['title_translations'] = settings_dict['settings_json'].get(f'{section_code}_title_translations')
+            if section_state:
+                sections_bucket[section_code] = section_state
     if 'restaurant_name' not in settings_dict or settings_dict.get('restaurant_name') is None:
         settings_dict['restaurant_name'] = 'My Restaurant'
 
@@ -237,20 +290,76 @@ def create_or_update_page_setting(
     existing = get_page_settings_record(db, current_user.tenant_id, page_data.page_code)
 
     if existing:
+        normalized_settings_json = existing.settings_json or {}
+        sections_bucket = _get_normalized_sections_bucket(normalized_settings_json)
+        section_state = sections_bucket.get(page_data.page_code)
+        if not isinstance(section_state, dict):
+            section_state = {}
+
         for key, value in page_data.model_dump(exclude_unset=True).items():
             if hasattr(existing, key) and key != 'page_code':
                 setattr(existing, key, value)
                 if key == 'settings_json':
                     flag_modified(existing, key)
+            if key == 'vr360_link':
+                section_state['vr360_link'] = value
+            if key == 'vr_title':
+                section_state['vr_title'] = value
+            if key == 'settings_json' and isinstance(value, dict):
+                for legacy_key, mapped_key in (
+                    ('target_id', 'target_id'),
+                    ('targetId', 'target_id'),
+                    ('scene_id', 'target_id'),
+                    ('sceneId', 'target_id'),
+                    ('panorama_url', 'panorama_url'),
+                    ('panoramaUrl', 'panorama_url'),
+                    ('title_translations', 'title_translations'),
+                    ('titleTranslations', 'title_translations'),
+                ):
+                    if legacy_key in value:
+                        section_state[mapped_key] = value.get(legacy_key)
+
+        if section_state:
+            sections_bucket[page_data.page_code] = section_state
+            existing.settings_json = normalized_settings_json
+            flag_modified(existing, 'settings_json')
 
         db.add(existing)
         db.commit()
         db.refresh(existing)
         return to_page_settings_response(existing, current_user.tenant_id)
 
+    new_settings_json = page_data.settings_json or {}
+    sections_bucket = _get_normalized_sections_bucket(new_settings_json)
+    section_state = sections_bucket.get(page_data.page_code)
+    if not isinstance(section_state, dict):
+        section_state = {}
+    if page_data.vr360_link is not None:
+        section_state['vr360_link'] = page_data.vr360_link
+    if page_data.vr_title is not None:
+        section_state['vr_title'] = page_data.vr_title
+    if isinstance(page_data.settings_json, dict):
+        for legacy_key, mapped_key in (
+            ('target_id', 'target_id'),
+            ('targetId', 'target_id'),
+            ('scene_id', 'target_id'),
+            ('sceneId', 'target_id'),
+            ('panorama_url', 'panorama_url'),
+            ('panoramaUrl', 'panorama_url'),
+            ('title_translations', 'title_translations'),
+            ('titleTranslations', 'title_translations'),
+        ):
+            if legacy_key in page_data.settings_json:
+                section_state[mapped_key] = page_data.settings_json.get(legacy_key)
+    if section_state:
+        sections_bucket[page_data.page_code] = section_state
+
     new_page = CafePageSettings(
         tenant_id=current_user.tenant_id,
-        **page_data.model_dump(exclude_unset=True),
+        **{
+            **page_data.model_dump(exclude_unset=True),
+            'settings_json': new_settings_json,
+        },
     )
     db.add(new_page)
     db.commit()

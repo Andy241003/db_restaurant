@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-// MainLayout & DashboardSelection - REMOVED (Cafe only)
+// MainLayout & DashboardSelection - removed for restaurant-only app
 // import MainLayout from './layouts/MainLayout';
 // import DashboardSelection from './pages/DashboardSelection';
 import Login from './pages/Login';
@@ -16,12 +16,12 @@ import AdminLayout from './pages/admin/AdminLayout';
 import SharedSettingsLayout from './layouts/SharedSettingsLayout';
 import Media from './pages/Media';
 
-// VR Hotel imports - REMOVED (Cafe only)
+// VR Hotel imports removed for restaurant-only app
 // import VRHotelActivities from './pages/vr-hotel/Activities';
 // import VRHotelContact from './pages/vr-hotel/Contact';
 // ... (all VR Hotel imports removed)
 
-// Travel Link imports - REMOVED (Cafe only)
+// Travel Link imports removed for restaurant-only app
 // import MainLayout from './layouts/MainLayout';
 // import DashboardSelection from './pages/DashboardSelection';
 
@@ -114,7 +114,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             
-            {/* Dashboard Selection - REMOVED (Cafe only) */}
+            {/* Dashboard selection removed for restaurant-only app */}
             {/* <Route path="/dashboard-selection" element={...} /> */}
             
             {/* Core Admin Routes - Super Admin only */}
@@ -143,7 +143,7 @@ function App() {
               } 
             />
             
-            {/* VR Hotel Routes - REMOVED (Cafe only) */}
+            {/* VR Hotel routes removed for restaurant-only app */}
             {/* <Route path="/vr-hotel/*" element={...} /> */}
 
             {/* Restaurant Routes */}
@@ -181,7 +181,7 @@ function App() {
               } 
             />
 
-            {/* Travel Link Routes - REMOVED (Cafe only) */}
+            {/* Travel Link routes removed for restaurant-only app */}
             {/* Default route: redirect to Restaurant */}
             <Route 
               path="/" 

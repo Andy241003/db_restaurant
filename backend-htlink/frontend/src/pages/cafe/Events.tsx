@@ -17,15 +17,19 @@ import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
+import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
 import {
     restaurantBranchesApi,
     restaurantEventsApi,
     restaurantLanguagesApi,
+    restaurantVr360Api,
     restaurantSettingsApi,
     type Branch,
     type RestaurantEvent,
     type RestaurantEventCreate,
     type EventTranslation,
+    type RestaurantVR360Scene,
+    type RestaurantVR360SectionSettings,
 } from '../../services/restaurantApi';
 import { getApiBaseUrl } from '../../utils/api';
 
@@ -128,16 +132,6 @@ const getBranchName = (branch: Branch) =>
   branch.code ||
   'Unknown branch';
 
-const convertToEmbedUrl = (url: string): string => {
-  if (!url) return url;
-  const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
-  const match = url.match(youtubeRegex);
-  if (match?.[1]) {
-    return `https://www.youtube.com/embed/${match[1]}`;
-  }
-  return url;
-};
-
 const getStatusBadgeClass = (status: EventStatus) => {
   switch (status) {
     case 'ongoing':
@@ -159,8 +153,14 @@ const RestaurantEvents: React.FC = () => {
   const [currentLocale, setCurrentLocale] = useState('vi');
   const [isDisplaying, setIsDisplaying] = useState(true);
   const [savingDisplayStatus, setSavingDisplayStatus] = useState(false);
-  const [vr360Link, setVr360Link] = useState('');
-  const [vrTitle, setVrTitle] = useState('');
+  const [scenes, setScenes] = useState<RestaurantVR360Scene[]>([]);
+  const [vr360Settings, setVr360Settings] = useState<RestaurantVR360SectionSettings>({
+    target_id: null,
+    panorama_url: null,
+    vr360_link: null,
+    vr_title: null,
+    title_translations: {},
+  });
   const [savingVR, setSavingVR] = useState(false);
   const [eventFilter, setEventFilter] = useState<'all' | EventStatus>('all');
   const [editingEvent, setEditingEvent] = useState<EditableEvent | null>(null);
@@ -174,11 +174,12 @@ const RestaurantEvents: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [eventData, languageCodes, settings, branchData] = await Promise.all([
+      const [eventData, languageCodes, settings, branchData, vr360Data] = await Promise.all([
         restaurantEventsApi.getEvents(),
         restaurantLanguagesApi.getLanguages(),
         restaurantSettingsApi.getSettings(),
         restaurantBranchesApi.getBranches(),
+        restaurantVr360Api.getSettings(),
       ]);
 
       const locales = languageCodes.length > 0 ? languageCodes.map((item) => item.locale) : ['vi', 'en'];
@@ -189,8 +190,14 @@ const RestaurantEvents: React.FC = () => {
       setEvents(eventData);
       setBranches(branchData);
       setIsDisplaying(typeof settingsJson.events_is_displaying === 'boolean' ? settingsJson.events_is_displaying : true);
-      setVr360Link(typeof settingsJson.events_vr360_link === 'string' ? settingsJson.events_vr360_link : '');
-      setVrTitle(typeof settingsJson.events_vr_title === 'string' ? settingsJson.events_vr_title : '');
+      setScenes(vr360Data.scenes || []);
+      setVr360Settings(vr360Data.sections.events || {
+        target_id: null,
+        panorama_url: null,
+        vr360_link: typeof settingsJson.events_vr360_link === 'string' ? settingsJson.events_vr360_link : null,
+        vr_title: typeof settingsJson.events_vr_title === 'string' ? settingsJson.events_vr_title : null,
+        title_translations: {},
+      });
     } catch (error: any) {
       toast.error(error.message || 'Failed to load events');
     } finally {
@@ -401,22 +408,17 @@ const RestaurantEvents: React.FC = () => {
     }
   };
 
-  const handleVR360Change = async (field: 'link' | 'title', value: string) => {
+  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings) => {
     try {
       setSavingVR(true);
-      const currentSettings = await restaurantSettingsApi.getSettings();
-      const updates = { ...currentSettings.settings_json };
-
-      if (field === 'link') {
-        const embedUrl = convertToEmbedUrl(value);
-        updates.events_vr360_link = embedUrl;
-        setVr360Link(embedUrl);
-      } else {
-        updates.events_vr_title = value;
-        setVrTitle(value);
-      }
-
-      await restaurantSettingsApi.updateSettings({ settings_json: updates });
+      setVr360Settings(nextSettings);
+      await restaurantVr360Api.updateSectionSettings('events', {
+        target_id: nextSettings.target_id || null,
+        panorama_url: nextSettings.panorama_url || null,
+        vr360_link: nextSettings.vr360_link || null,
+        vr_title: nextSettings.vr_title || null,
+        title_translations: nextSettings.title_translations || {},
+      });
       toast.success('VR360 settings saved');
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to save VR settings');
@@ -483,68 +485,16 @@ const RestaurantEvents: React.FC = () => {
           <FontAwesomeIcon icon={faVrCardboard} className="text-xl text-purple-600" />
           <h2 className="text-xl font-bold text-slate-800">VR360 Settings</h2>
         </div>
-
-        <div className="space-y-6">
-          <div>
-            <label className={LABEL_CLASS}>VR360 Link</label>
-            <input
-              type="url"
-              className={FIELD_CLASS}
-              value={vr360Link}
-              onChange={(e) => void handleVR360Change('link', e.target.value)}
-              placeholder="https://example.com/panorama.jpg or https://youtube.com/watch?v=..."
-              disabled={savingVR}
-            />
-            <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
-              <FontAwesomeIcon icon={faCircleInfo} className="mt-0.5 text-slate-500" />
-              <span>Enter a 360 panorama image URL or YouTube video URL for the Events landing experience.</span>
-            </p>
-          </div>
-
-          <div>
-            <label className={LABEL_CLASS}>VR Tour Title</label>
-            <input
-              type="text"
-              className={FIELD_CLASS}
-              value={vrTitle}
-              onChange={(e) => void handleVR360Change('title', e.target.value)}
-              placeholder="Enter VR tour title"
-              disabled={savingVR}
-            />
-          </div>
-
-          {vr360Link && (
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <FontAwesomeIcon icon={faEye} className="text-slate-600" />
-                <h3 className="text-sm font-medium text-slate-700">VR360 Preview</h3>
-              </div>
-
-              <div className="overflow-hidden rounded-lg border-2 border-slate-300 bg-slate-50">
-                <div className="relative w-full" style={{ height: '500px' }}>
-                  <iframe
-                    src={vr360Link}
-                    className="absolute left-0 top-0 h-full w-full"
-                    allowFullScreen
-                    title="Events VR360 Preview"
-                    allow="xr-spatial-tracking; gyroscope; accelerometer"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => window.open(vr360Link, '_blank')}
-                  className="inline-flex items-center gap-2 rounded-md bg-slate-600 px-6 py-2 text-white transition-colors hover:bg-slate-700"
-                >
-                  <FontAwesomeIcon icon={faGlobe} />
-                  View Fullscreen
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <VR360SettingsPanel
+          sectionLabel="Events"
+          value={vr360Settings}
+          scenes={scenes}
+          currentLocale={currentLocale}
+          locales={supportedLanguages}
+          onLocaleChange={setCurrentLocale}
+          onChange={(nextValue) => void handleVR360Change(nextValue)}
+          disabled={savingVR}
+        />
       </div>
 
       {!editingEvent && (

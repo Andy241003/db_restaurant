@@ -1,9 +1,9 @@
 """
-HotelLink 360 SaaS Backend Application
+VR Restaurant Backend Application
 
-A multi-tenant hotel management SaaS system built with FastAPI.
+A multi-tenant restaurant management system built with FastAPI.
 """
 
 __version__ = "0.1.0"
-__title__ = "HotelLink 360 SaaS Backend"
-__description__ = "Multi-tenant hotel management system with FastAPI and MySQL"
+__title__ = "VR Restaurant Backend"
+__description__ = "Multi-tenant restaurant management system with FastAPI and MySQL"

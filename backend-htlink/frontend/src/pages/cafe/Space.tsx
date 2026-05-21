@@ -3,8 +3,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
-import type { Space, SpaceTranslation } from '../../services/restaurantApi';
-import { cafeLanguagesApi, cafeSettingsApi, cafeSpacesApi } from '../../services/restaurantApi';
+import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
+import type { RestaurantVR360Scene, RestaurantVR360SectionSettings, Space, SpaceTranslation } from '../../services/restaurantApi';
+import { cafeLanguagesApi, cafeSettingsApi, cafeSpacesApi, restaurantVr360Api } from '../../services/restaurantApi';
 import { getApiBaseUrl } from '../../utils/api';
 
 const LABEL_CLASS = 'block text-sm font-medium text-slate-700 mb-2';
@@ -33,8 +34,16 @@ const RestaurantSpace: React.FC = () => {
   const [currentLocale, setCurrentLocale] = useState('vi');
   const [isDisplaying, setIsDisplaying] = useState(true);
   const [savingDisplayStatus, setSavingDisplayStatus] = useState(false);
-  const [vr360Link, setVr360Link] = useState('');
-  const [vrTitle, setVrTitle] = useState('');
+  const [scenes, setScenes] = useState<RestaurantVR360Scene[]>([]);
+  const [vr360Settings, setVr360Settings] = useState<RestaurantVR360SectionSettings>({
+    target_id: null,
+    panorama_url: null,
+    vr360_link: null,
+    vr_title: null,
+    title_translations: {},
+  });
+  const vr360Link = vr360Settings.vr360_link || '';
+  const vrTitle = vr360Settings.vr_title || '';
   const [savingVR, setSavingVR] = useState(false);
   const [mediaPickerVisible, setMediaPickerVisible] = useState(false);
   const [draggingSpaceId, setDraggingSpaceId] = useState<number | null>(null);
@@ -49,19 +58,27 @@ const RestaurantSpace: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [languages, settings, spaceData] = await Promise.all([
+      const [languages, settings, spaceData, vr360Data] = await Promise.all([
         cafeLanguagesApi.getLanguages(),
         cafeSettingsApi.getSettings(),
         cafeSpacesApi.getSpaces(),
+        restaurantVr360Api.getSettings(),
       ]);
+      const settingsJson = (settings.settings_json ?? {}) as Record<string, unknown>;
       const langCodes = languages.map((item) => item.locale);
       if (langCodes.length > 0) {
         setSupportedLanguages(langCodes);
         setCurrentLocale(langCodes[0]);
       }
-      setIsDisplaying(settings.settings_json?.spaces_is_displaying ?? true);
-      setVr360Link(settings.settings_json?.spaces_vr360_link || '');
-      setVrTitle(settings.settings_json?.spaces_vr_title || '');
+      setIsDisplaying(settingsJson.spaces_is_displaying ?? true);
+      setScenes(vr360Data.scenes || []);
+      setVr360Settings(vr360Data.sections.spaces || {
+        target_id: null,
+        panorama_url: null,
+        vr360_link: typeof settingsJson.spaces_vr360_link === 'string' ? settingsJson.spaces_vr360_link : null,
+        vr_title: typeof settingsJson.spaces_vr_title === 'string' ? settingsJson.spaces_vr_title : null,
+        title_translations: {},
+      });
       setSpaces(spaceData);
     } catch (error: any) {
       toast.error(error.message || 'Failed to load spaces');
@@ -349,19 +366,24 @@ const RestaurantSpace: React.FC = () => {
     return url;
   };
 
-  const handleVR360Change = async (field: 'link' | 'title', value: string) => {
+  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings | 'link' | 'title', value?: string) => {
     try {
       setSavingVR(true);
-      const currentSettings = await cafeSettingsApi.getSettings();
-      await cafeSettingsApi.updateSettings({
-        settings_json: {
-          ...(currentSettings.settings_json || {}),
-          spaces_vr360_link: field === 'link' ? convertToEmbedUrl(value) : vr360Link,
-          spaces_vr_title: field === 'title' ? value : vrTitle,
-        },
+      const resolvedSettings: RestaurantVR360SectionSettings = typeof nextSettings === 'string'
+        ? {
+            ...vr360Settings,
+            vr360_link: nextSettings === 'link' ? convertToEmbedUrl(value || '') || null : vr360Settings.vr360_link,
+            vr_title: nextSettings === 'title' ? value || null : vr360Settings.vr_title,
+          }
+        : nextSettings;
+      setVr360Settings(resolvedSettings);
+      await restaurantVr360Api.updateSectionSettings('spaces', {
+        target_id: resolvedSettings.target_id || null,
+        panorama_url: resolvedSettings.panorama_url || null,
+        vr360_link: resolvedSettings.vr360_link || null,
+        vr_title: resolvedSettings.vr_title || null,
+        title_translations: resolvedSettings.title_translations || {},
       });
-      if (field === 'link') setVr360Link(convertToEmbedUrl(value));
-      if (field === 'title') setVrTitle(value);
       toast.success('VR360 settings saved');
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to save VR settings');
@@ -426,7 +448,17 @@ const RestaurantSpace: React.FC = () => {
           <FontAwesomeIcon icon={faVrCardboard} className="text-purple-600" />
           <h2 className="text-xl font-bold text-slate-800">VR360 Settings</h2>
         </div>
-        <div className="space-y-6">
+        <VR360SettingsPanel
+          sectionLabel="Spaces"
+          value={vr360Settings}
+          scenes={scenes}
+          currentLocale={currentLocale}
+          locales={supportedLanguages}
+          onLocaleChange={setCurrentLocale}
+          onChange={(nextValue) => void handleVR360Change(nextValue)}
+          disabled={savingVR}
+        />
+        <div className="hidden space-y-6">
           <div>
             <label className={LABEL_CLASS}>VR360 Link</label>
             <input

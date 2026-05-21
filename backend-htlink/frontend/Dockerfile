@@ -15,10 +15,12 @@ COPY . .
 # Build arguments
 ARG VITE_API_URL=https://travel.link360.vn
 ARG NODE_ENV=production
+ARG NODE_OPTIONS=--max-old-space-size=4096
 
 # Set environment variables
 ENV VITE_API_URL=${VITE_API_URL}
 ENV NODE_ENV=${NODE_ENV}
+ENV NODE_OPTIONS=${NODE_OPTIONS}
 
 # Build the app
 RUN npm run build

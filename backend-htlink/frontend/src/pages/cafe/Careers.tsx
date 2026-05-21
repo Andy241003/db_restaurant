@@ -17,15 +17,19 @@ import dayjs from 'dayjs';
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
+import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
 import {
     cafeBranchesApi,
     cafeCareersApi,
     cafeLanguagesApi,
     cafeSettingsApi,
+    restaurantVr360Api,
     type Branch,
     type Career,
     type CareerCreate,
     type CareerTranslation,
+    type RestaurantVR360Scene,
+    type RestaurantVR360SectionSettings,
 } from '../../services/restaurantApi';
 import { getApiBaseUrl } from '../../utils/api';
 
@@ -137,16 +141,6 @@ const getStatusBadgeClass = (status: CareerStatus) => {
   }
 };
 
-const convertToEmbedUrl = (url: string): string => {
-  if (!url) return url;
-  const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
-  const match = url.match(youtubeRegex);
-  if (match?.[1]) {
-    return `https://www.youtube.com/embed/${match[1]}`;
-  }
-  return url;
-};
-
 const RestaurantCareers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [careers, setCareers] = useState<Career[]>([]);
@@ -155,9 +149,17 @@ const RestaurantCareers: React.FC = () => {
   const [currentLocale, setCurrentLocale] = useState('vi');
   const [isDisplaying, setIsDisplaying] = useState(true);
   const [savingDisplayStatus, setSavingDisplayStatus] = useState(false);
-  const [vr360Link, setVr360Link] = useState('');
-  const [vrTitle, setVrTitle] = useState('');
+  const [scenes, setScenes] = useState<RestaurantVR360Scene[]>([]);
+  const [vr360Settings, setVr360Settings] = useState<RestaurantVR360SectionSettings>({
+    target_id: null,
+    panorama_url: null,
+    vr360_link: null,
+    vr_title: null,
+    title_translations: {},
+  });
   const [savingVR, setSavingVR] = useState(false);
+  const vr360Link = vr360Settings.vr360_link || '';
+  const vrTitle = vr360Settings.vr_title || '';
   const [careerFilter, setCareerFilter] = useState<'all' | CareerStatus>('all');
   const [editingCareer, setEditingCareer] = useState<EditableCareer | null>(null);
   const [savingCareer, setSavingCareer] = useState(false);
@@ -169,21 +171,29 @@ const RestaurantCareers: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [careerData, languages, settings, branchData] = await Promise.all([
+      const [careerData, languages, settings, branchData, vr360Data] = await Promise.all([
         cafeCareersApi.getCareers(),
         cafeLanguagesApi.getLanguages(),
         cafeSettingsApi.getSettings(),
         cafeBranchesApi.getBranches(),
+        restaurantVr360Api.getSettings(),
       ]);
 
       const locales = languages.length > 0 ? languages.map((item) => item.locale) : ['vi', 'en'];
+      const settingsJson = (settings.settings_json ?? {}) as Record<string, unknown>;
       setSupportedLanguages(locales);
       setCurrentLocale((previous) => (locales.includes(previous) ? previous : locales[0]));
       setCareers(careerData);
       setBranches(branchData);
-      setIsDisplaying(settings.settings_json?.careers_is_displaying ?? true);
-      setVr360Link(settings.settings_json?.careers_vr360_link || '');
-      setVrTitle(settings.settings_json?.careers_vr_title || '');
+      setIsDisplaying(settingsJson.careers_is_displaying ?? true);
+      setScenes(vr360Data.scenes || []);
+      setVr360Settings(vr360Data.sections.careers || {
+        target_id: null,
+        panorama_url: null,
+        vr360_link: typeof settingsJson.careers_vr360_link === 'string' ? settingsJson.careers_vr360_link : null,
+        vr_title: typeof settingsJson.careers_vr_title === 'string' ? settingsJson.careers_vr_title : null,
+        title_translations: {},
+      });
     } catch (error: any) {
       toast.error(error.message || 'Failed to load careers');
     } finally {
@@ -385,22 +395,34 @@ const RestaurantCareers: React.FC = () => {
     setEditingCareer((previous) => (previous ? { ...previous, primary_image_media_id: mediaId } : previous));
   };
 
-  const handleVR360Change = async (field: 'link' | 'title', value: string) => {
+  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings | 'link' | 'title', value?: string) => {
     try {
       setSavingVR(true);
-      const currentSettings = await cafeSettingsApi.getSettings();
-      const updates = { ...currentSettings.settings_json };
-
-      if (field === 'link') {
-        const embedUrl = convertToEmbedUrl(value);
-        updates.careers_vr360_link = embedUrl;
-        setVr360Link(embedUrl);
-      } else {
-        updates.careers_vr_title = value;
-        setVrTitle(value);
+      if (typeof nextSettings === 'string') {
+        const legacyNextSettings: RestaurantVR360SectionSettings = {
+          ...vr360Settings,
+          vr360_link: nextSettings === 'link' ? value || null : vr360Settings.vr360_link,
+          vr_title: nextSettings === 'title' ? value || null : vr360Settings.vr_title,
+        };
+        setVr360Settings(legacyNextSettings);
+        await restaurantVr360Api.updateSectionSettings('careers', {
+          target_id: legacyNextSettings.target_id || null,
+          panorama_url: legacyNextSettings.panorama_url || null,
+          vr360_link: legacyNextSettings.vr360_link || null,
+          vr_title: legacyNextSettings.vr_title || null,
+          title_translations: legacyNextSettings.title_translations || {},
+        });
+        toast.success('VR360 settings saved');
+        return;
       }
-
-      await cafeSettingsApi.updateSettings({ settings_json: updates });
+      setVr360Settings(nextSettings);
+      await restaurantVr360Api.updateSectionSettings('careers', {
+        target_id: nextSettings.target_id || null,
+        panorama_url: nextSettings.panorama_url || null,
+        vr360_link: nextSettings.vr360_link || null,
+        vr_title: nextSettings.vr_title || null,
+        title_translations: nextSettings.title_translations || {},
+      });
       toast.success('VR360 settings saved');
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to save VR settings');
@@ -468,7 +490,18 @@ const RestaurantCareers: React.FC = () => {
           <h2 className="text-xl font-bold text-slate-800">VR360 Settings</h2>
         </div>
 
-        <div className="space-y-6">
+        <>
+          <VR360SettingsPanel
+            sectionLabel="Careers"
+            value={vr360Settings}
+            scenes={scenes}
+            currentLocale={currentLocale}
+            locales={supportedLanguages}
+            onLocaleChange={setCurrentLocale}
+            onChange={(nextValue) => void handleVR360Change(nextValue)}
+            disabled={savingVR}
+          />
+        <div className="hidden space-y-6">
           <div>
             <label className={LABEL_CLASS}>VR360 Link</label>
             <input
@@ -517,6 +550,7 @@ const RestaurantCareers: React.FC = () => {
             </div>
           )}
         </div>
+        </>
       </div>
       <div className={SECTION_CLASS}>
         <div className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-4 lg:flex-row lg:items-center lg:justify-between">

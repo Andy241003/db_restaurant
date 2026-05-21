@@ -1,25 +1,27 @@
 import {
     faArrowRotateLeft,
     faCircleInfo,
-    faEye,
     faFlag,
     faFloppyDisk,
-    faPlay,
     faVrCardboard,
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import axios from 'axios';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
 import type {
     RestaurantPageSettings,
     ContentSection,
     ContentSectionTranslation,
+    RestaurantVR360Scene,
+    RestaurantVR360SectionSettings,
 } from '../../services/restaurantApi';
 import {
     restaurantContentSectionsApi,
     restaurantLanguagesApi,
     restaurantPageSettingsApi,
+    restaurantVr360Api,
 } from '../../services/restaurantApi';
 
 const INPUT_CLASS = 'w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed';
@@ -58,8 +60,7 @@ interface IntroductionFormState {
 interface PageSettingsFormState {
   page_code: 'home' | 'about';
   is_displaying: boolean;
-  vr360_link: string;
-  vr_title: string;
+  vr360: RestaurantVR360SectionSettings;
 }
 
 interface RestaurantHomeAboutPageProps {
@@ -110,14 +111,23 @@ const buildIntroductionState = (
   };
 };
 
+const buildDefaultVr360State = (
+  pageSettings?: RestaurantPageSettings,
+): RestaurantVR360SectionSettings => ({
+  target_id: null,
+  panorama_url: null,
+  vr360_link: pageSettings?.vr360_link || null,
+  vr_title: pageSettings?.vr_title || null,
+  title_translations: {},
+});
+
 const buildPageSettingsState = (
   pageCode: 'home' | 'about',
   pageSettings?: RestaurantPageSettings,
 ): PageSettingsFormState => ({
   page_code: pageCode,
   is_displaying: pageSettings?.is_displaying ?? true,
-  vr360_link: pageSettings?.vr360_link || '',
-  vr_title: pageSettings?.vr_title || '',
+  vr360: buildDefaultVr360State(pageSettings),
 });
 
 const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
@@ -131,6 +141,7 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
   const [currentLocale, setCurrentLocale] = useState<string>('vi');
   const [introduction, setIntroduction] = useState<IntroductionFormState | null>(null);
   const [pageSettings, setPageSettings] = useState<PageSettingsFormState>(() => buildPageSettingsState(pageCode));
+  const [scenes, setScenes] = useState<RestaurantVR360Scene[]>([]);
   const [initialIntroduction, setInitialIntroduction] = useState<IntroductionFormState | null>(null);
   const [initialPageSettings, setInitialPageSettings] = useState<PageSettingsFormState>(() => buildPageSettingsState(pageCode));
 
@@ -144,7 +155,7 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
       setSupportedLanguages(resolvedLocales);
       setCurrentLocale((prev) => (resolvedLocales.includes(prev) ? prev : resolvedLocales[0]));
 
-      const [sections, pageSetting] = await Promise.all([
+      const [sections, pageSetting, vr360Settings] = await Promise.all([
         restaurantContentSectionsApi.getContentSections(pageCode, 'introduction'),
         restaurantPageSettingsApi.getPageSetting(pageCode).catch((error) => {
           if (axios.isAxiosError(error) && error.response?.status === 404) {
@@ -152,16 +163,28 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
           }
           throw error;
         }),
+        restaurantVr360Api.getSettings(),
       ]);
 
       const introductionSection = sections[0];
       const nextIntroduction = buildIntroductionState(resolvedLocales, pageCode, introductionSection);
       const nextPageSettings = buildPageSettingsState(pageCode, pageSetting || undefined);
+      const sectionVr360 = vr360Settings.sections[pageCode];
+      if (sectionVr360) {
+        nextPageSettings.vr360 = {
+          target_id: sectionVr360.target_id || null,
+          panorama_url: sectionVr360.panorama_url || null,
+          vr360_link: sectionVr360.vr360_link || null,
+          vr_title: sectionVr360.vr_title || null,
+          title_translations: sectionVr360.title_translations || {},
+        };
+      }
 
       setIntroduction(nextIntroduction);
       setInitialIntroduction(JSON.parse(JSON.stringify(nextIntroduction)));
       setPageSettings(nextPageSettings);
       setInitialPageSettings(JSON.parse(JSON.stringify(nextPageSettings)));
+      setScenes(vr360Settings.scenes);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to load introduction data');
     } finally {
@@ -177,8 +200,8 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
     setPageSettings((prev) => ({ ...prev, is_displaying: checked }));
   };
 
-  const handlePageSettingChange = (field: keyof Omit<PageSettingsFormState, 'page_code' | 'is_displaying'>, value: string) => {
-    setPageSettings((prev) => ({ ...prev, [field]: value }));
+  const handleVr360Change = (nextVr360: RestaurantVR360SectionSettings) => {
+    setPageSettings((prev) => ({ ...prev, vr360: nextVr360 }));
   };
 
   const handleTranslationChange = (locale: string, field: keyof TranslationFormValue, value: string) => {
@@ -232,8 +255,13 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
         restaurantPageSettingsApi.createOrUpdatePageSetting({
           page_code: pageCode,
           is_displaying: pageSettings.is_displaying,
-          vr360_link: pageSettings.vr360_link || null,
-          vr_title: pageSettings.vr_title || null,
+        }),
+        restaurantVr360Api.updateSectionSettings(pageCode, {
+          target_id: pageSettings.vr360.target_id || null,
+          panorama_url: pageSettings.vr360.panorama_url || null,
+          vr360_link: pageSettings.vr360.vr360_link || null,
+          vr_title: pageSettings.vr360.vr_title || null,
+          title_translations: pageSettings.vr360.title_translations || {},
         }),
       ]);
 
@@ -265,7 +293,6 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
     );
   }
 
-  // Only disable fields while saving - display status shouldn't prevent editing
   const fieldsDisabled = saving;
 
   return (
@@ -366,72 +393,16 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
           <h2 className="text-xl font-bold text-slate-800">VR360 Settings</h2>
         </div>
 
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Link VR360 Panorama / YouTube Video</label>
-            <input
-              type="url"
-              placeholder="https://example.com/panorama.jpg or https://youtube.com/watch?v=..."
-              className={INPUT_CLASS}
-              value={pageSettings.vr360_link}
-              onChange={(event) => handlePageSettingChange('vr360_link', event.target.value)}
-              disabled={fieldsDisabled}
-            />
-            <p className="mt-2 text-sm text-slate-500 flex items-start gap-2">
-              <FontAwesomeIcon icon={faCircleInfo} className="mt-0.5" />
-              <span>Enter the URL to a 360� panorama image or YouTube video URL</span>
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">VR Tour Title</label>
-            <input
-              type="text"
-              placeholder="Enter VR tour title"
-              className={INPUT_CLASS}
-              value={pageSettings.vr_title}
-              onChange={(event) => handlePageSettingChange('vr_title', event.target.value)}
-              disabled={fieldsDisabled}
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <FontAwesomeIcon icon={faEye} className="text-slate-600" />
-              <h3 className="text-sm font-medium text-slate-700">VR360 Preview</h3>
-            </div>
-            <div className="border-2 border-slate-300 rounded-lg overflow-hidden bg-slate-50">
-              {pageSettings.vr360_link ? (
-                <div className="relative w-full" style={{ height: '500px' }}>
-                  <iframe
-                    src={pageSettings.vr360_link}
-                    className="absolute top-0 left-0 w-full h-full"
-                    allowFullScreen
-                    title={`${pageTitle} VR360 Preview`}
-                    allow="xr-spatial-tracking; gyroscope; accelerometer"
-                  />
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <FontAwesomeIcon icon={faVrCardboard} className="text-slate-400 text-5xl mb-3" />
-                  <p className="text-slate-600 font-medium mb-1">VR360 Preview</p>
-                  <p className="text-slate-500 text-sm">Enter VR360 link to preview</p>
-                </div>
-              )}
-            </div>
-            <div className="mt-4 text-center">
-              <button
-                type="button"
-                disabled={!pageSettings.vr360_link}
-                onClick={() => window.open(pageSettings.vr360_link, '_blank')}
-                className="px-6 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
-              >
-                <FontAwesomeIcon icon={faPlay} />
-                View Fullscreen
-              </button>
-            </div>
-          </div>
-        </div>
+        <VR360SettingsPanel
+          sectionLabel={pageTitle}
+          value={pageSettings.vr360}
+          scenes={scenes}
+          currentLocale={currentLocale}
+          locales={supportedLanguages}
+          onLocaleChange={setCurrentLocale}
+          onChange={handleVr360Change}
+          disabled={fieldsDisabled}
+        />
       </div>
 
       <div className="flex gap-4">
@@ -459,6 +430,3 @@ const RestaurantHomeAboutPage: React.FC<RestaurantHomeAboutPageProps> = ({
 };
 
 export default RestaurantHomeAboutPage;
-
-
-

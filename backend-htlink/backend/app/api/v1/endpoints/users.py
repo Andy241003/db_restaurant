@@ -116,8 +116,8 @@ def create_user(
     # Ensure the user is being created in the correct tenant
     user_in.tenant_id = current_user.tenant_id
     
-    # Auto-sync service_access: REMOVED - Cafe only system
-    # All users have access to Cafe by default
+    # Auto-sync service_access: removed for restaurant-only system.
+    # All users have access to Restaurant by default.
     
     user = crud.admin_user.create(session, obj_in=user_in)
     

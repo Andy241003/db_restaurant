@@ -1,30 +1,10 @@
 services:
-  db:
-    image: mysql:8.0
-    restart: always
-    command: --default-authentication-plugin=mysql_native_password
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    ports:
-      - "3307:3306"
-    volumes:
-      - restaurant-db-data:/var/lib/mysql
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d
-      - ../linkhotel_saas_schema_seed.sql:/seed/linkhotel_saas_schema_seed.sql:ro
-      - ./create_cafe_tables_fixed.sql:/seed/create_cafe_tables_fixed.sql:ro
-      - ./backend/migrations:/seed/backend-migrations:ro
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
+  # Database is external. Configure MYSQL_* in .env or Coolify environment variables.
 
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     restart: always
     env_file:
       - .env
@@ -32,26 +12,18 @@ services:
       - "8000:8000"
     volumes:
       - backend-uploads:/app/uploads
-    depends_on:
-      db:
-        condition: service_healthy
 
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://backend:8000
-        - NODE_ENV=development
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        NODE_ENV: production
+        NODE_OPTIONS: --max-old-space-size=4096
     restart: always
     ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=http://backend:8000
-      - NODE_OPTIONS=--max-old-space-size=384
+      - "3001:80"
     depends_on:
       backend:
         condition: service_started
@@ -61,22 +33,16 @@ services:
     restart: always
     ports:
       - "8081:8080"
-    depends_on:
-      db:
-        condition: service_started
 
   prestart:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     restart: "no"
     profiles: ["setup"]
     command: bash scripts/prestart.sh
     env_file:
       - .env
-    depends_on:
-      db:
-        condition: service_healthy
 
 volumes:
   backend-uploads:
-  restaurant-db-data:

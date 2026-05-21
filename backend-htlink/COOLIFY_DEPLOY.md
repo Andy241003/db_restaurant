@@ -1,52 +1,32 @@
-# Coolify Backend Deploy Notes
+# Coolify Deploy Notes
 
-This repo can be deployed to Coolify without changing application logic if you use the backend image with the production environment variables.
+This repository is now organized so the default `docker-compose.yml` is safe for production-style deployment, while local hot-reload work should use `docker-compose.dev.yml`.
 
-## Coolify form values
+## Recommended deployment mode
 
-For a backend-only Coolify service, use:
+For Coolify, prefer two separate services:
+
+- Backend service from `/backend/Dockerfile`
+- Frontend service from `/frontend/Dockerfile`
+
+This avoids coupling frontend build-time API settings to an internal Docker hostname.
+
+## Backend Coolify settings
 
 - `Build Pack`: `Dockerfile`
 - `Base Directory`: `/`
 - `Dockerfile Location`: `/backend/Dockerfile`
 - `Ports Exposes`: `8000`
-- `Port Mappings`: leave empty unless you specifically need one
 
-Use the backend domain in Coolify, for example:
+Set backend environment variables in Coolify, not in git-tracked files.
 
-- `https://api.your-domain.com`
-
-Then set:
-
-- `FRONTEND_HOST=https://your-frontend-domain.com`
-- `BACKEND_CORS_ORIGINS=["https://your-frontend-domain.com","https://api.your-domain.com"]`
-
-## Backend startup flow
-
-The backend container now starts with:
-
-1. `scripts/prestart.sh`
-2. database connectivity check
-3. optional Alembic migration when `RUN_ALEMBIC_MIGRATIONS=true`
-4. `uvicorn app.main:app`
-
-By default, production startup skips Alembic migrations to avoid accidentally replaying migrations against an existing live database.
-
-## Healthcheck
-
-The backend now exposes a container healthcheck against:
-
-- `/health`
-
-App-level endpoint:
-
-- `GET /health`
-
-## Recommended Coolify environment variables
+Minimum backend variables:
 
 - `ENVIRONMENT=production`
-- `FRONTEND_HOST=<your frontend URL>`
-- `BACKEND_CORS_ORIGINS=[...]`
+- `PORT=8000`
+- `RUN_ALEMBIC_MIGRATIONS=false`
+- `FRONTEND_HOST=https://your-frontend-domain.com`
+- `BACKEND_CORS_ORIGINS=["https://your-frontend-domain.com","https://your-backend-domain.com"]`
 - `MYSQL_SERVER=<your mysql host>`
 - `MYSQL_PORT=3306`
 - `MYSQL_DATABASE=<your db name>`
@@ -55,18 +35,42 @@ App-level endpoint:
 - `SECRET_KEY=<strong secret>`
 - `FIRST_SUPERUSER=<admin email>`
 - `FIRST_SUPERUSER_PASSWORD=<admin password>`
-- `RUN_ALEMBIC_MIGRATIONS=false`
-- `PORT=8000`
+- `PROJECT_NAME=VR Restaurant`
 
-## When to enable migrations
+## Frontend Coolify settings
 
-Set `RUN_ALEMBIC_MIGRATIONS=true` only when:
+- `Build Pack`: `Dockerfile`
+- `Base Directory`: `/`
+- `Dockerfile Location`: `/frontend/Dockerfile`
+- `Ports Exposes`: `80`
 
-- deploying to a fresh database, or
-- you have reviewed the pending Alembic chain for the target database.
+Frontend build argument:
 
-For an already-populated production database, keep it `false` unless you intentionally want Alembic to run.
+- `VITE_API_URL=https://your-backend-domain.com`
+
+The frontend production image is served by nginx and does not require the Vite dev server.
+
+## Local usage
+
+- Production-style local run: `docker compose up -d --build`
+- Local hot reload: `docker compose -f docker-compose.dev.yml up -d --build`
+
+## Backend startup flow
+
+The backend container starts with:
+
+1. `scripts/prestart.sh`
+2. database connectivity check
+3. optional Alembic migration when `RUN_ALEMBIC_MIGRATIONS=true`
+4. `uvicorn app.main:app`
+
+By default, production startup skips Alembic migrations to avoid replaying migrations against an existing live database.
+
+## Healthcheck
+
+- Container healthcheck: `/health`
+- App endpoint: `GET /health`
 
 ## Important note
 
-The current project has legacy SQL scripts and Alembic history from older schema phases. The runtime path is now safe for Coolify startup, but migration execution should still be enabled deliberately rather than by default.
+The VR360 scenes table is currently provisioned by the SQL script at `backend/migrations/add_vr360_scenes_table.sql`. Make sure that table already exists in the target production database before enabling VR360 settings in a freshly deployed environment.

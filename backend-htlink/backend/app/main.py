@@ -120,7 +120,7 @@ app.add_middleware(
 app.include_router(api_router)
 
 
-CAFE_DOC_TAGS = {"restaurant", "auth", "media"}
+CAFE_DOC_TAGS = {"restaurant", "auth", "media", "vr360"}
 
 
 def custom_openapi():

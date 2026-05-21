@@ -5,7 +5,8 @@ import { Coffee, Edit, Eye, GripVertical, Info, Play, Plus, Trash2 } from 'lucid
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
-import { cafeLanguagesApi, cafeMenuApi, cafeSettingsApi, type CategoryTranslation, type ItemTranslation, type MenuCategory, type MenuCategoryCreate, type MenuItem, type MenuItemCreate } from '../../services/restaurantApi';
+import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
+import { cafeLanguagesApi, cafeMenuApi, cafeSettingsApi, restaurantVr360Api, type CategoryTranslation, type ItemTranslation, type MenuCategory, type MenuCategoryCreate, type MenuItem, type MenuItemCreate, type RestaurantVR360Scene, type RestaurantVR360SectionSettings } from '../../services/restaurantApi';
 import { getApiBaseUrl } from '../../utils/api';
 
 const { TextArea } = Input;
@@ -101,8 +102,14 @@ const RestaurantMenu: React.FC = () => {
   // Display status state
   const [isDisplaying, setIsDisplaying] = useState(true);
   const [savingDisplayStatus, setSavingDisplayStatus] = useState(false);
-  const [vr360Link, setVr360Link] = useState('');
-  const [vrTitle, setVrTitle] = useState('');
+  const [scenes, setScenes] = useState<RestaurantVR360Scene[]>([]);
+  const [vr360Settings, setVr360Settings] = useState<RestaurantVR360SectionSettings>({
+    target_id: null,
+    panorama_url: null,
+    vr360_link: null,
+    vr_title: null,
+    title_translations: {},
+  });
   const [savingVR, setSavingVR] = useState(false);
 
   useEffect(() => {
@@ -166,11 +173,20 @@ const RestaurantMenu: React.FC = () => {
         setSupportedLanguages(langs);
       }
       
-      const settings = await cafeSettingsApi.getSettings();
+      const [settings, vr360Data] = await Promise.all([
+        cafeSettingsApi.getSettings(),
+        restaurantVr360Api.getSettings(),
+      ]);
       const displayStatus = settings.settings_json?.menu_is_displaying ?? true;
       setIsDisplaying(displayStatus);
-      setVr360Link(settings.settings_json?.menu_vr360_link || '');
-      setVrTitle(settings.settings_json?.menu_vr_title || '');
+      setScenes(vr360Data.scenes || []);
+      setVr360Settings(vr360Data.sections.menu || {
+        target_id: null,
+        panorama_url: null,
+        vr360_link: settings.settings_json?.menu_vr360_link || null,
+        vr_title: settings.settings_json?.menu_vr_title || null,
+        title_translations: {},
+      });
     } catch (error) {
       console.error('Failed to load languages:', error);
     }
@@ -199,32 +215,17 @@ const RestaurantMenu: React.FC = () => {
     }
   };
 
-  const convertToEmbedUrl = (url: string): string => {
-    if (!url) return url;
-    const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
-    const match = url.match(youtubeRegex);
-    if (match && match[1]) {
-      return `https://www.youtube.com/embed/${match[1]}`;
-    }
-    return url;
-  };
-
-  const handleVR360Change = async (field: 'link' | 'title', value: string) => {
+  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings) => {
     try {
       setSavingVR(true);
-      const currentSettings = await cafeSettingsApi.getSettings();
-      const updates = { ...currentSettings.settings_json };
-      
-      if (field === 'link') {
-        const embedUrl = convertToEmbedUrl(value);
-        updates.menu_vr360_link = embedUrl;
-        setVr360Link(embedUrl);
-      } else {
-        updates.menu_vr_title = value;
-        setVrTitle(value);
-      }
-      
-      await cafeSettingsApi.updateSettings({ settings_json: updates });
+      setVr360Settings(nextSettings);
+      await restaurantVr360Api.updateSectionSettings('menu', {
+        target_id: nextSettings.target_id || null,
+        panorama_url: nextSettings.panorama_url || null,
+        vr360_link: nextSettings.vr360_link || null,
+        vr_title: nextSettings.vr_title || null,
+        title_translations: nextSettings.title_translations || {},
+      });
       toast.success('VR360 settings saved');
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to save VR360 settings');
@@ -706,71 +707,16 @@ const RestaurantMenu: React.FC = () => {
           <h2 className="text-xl font-bold text-slate-800">VR360 Settings</h2>
         </div>
         
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Link VR360 Panorama / YouTube Video
-            </label>
-            <input
-              type="url"
-              placeholder="https://example.com/panorama.jpg or https://youtube.com/watch?v=..."
-              className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
-              value={vr360Link}
-              onChange={(e) => handleVR360Change('link', e.target.value)}
-              disabled={savingVR}
-            />
-            <p className="mt-2 text-sm text-slate-500 flex items-start gap-2">
-              <Info className="mt-0.5 w-4 h-4" />
-              <span>
-                Enter the URL to a 360-degree panorama image (equirectangular JPG, min 4096x2048px) or a YouTube video URL
-              </span>
-            </p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">VR Tour Title</label>
-            <input
-              type="text"
-              placeholder="Enter VR tour title"
-              className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
-              value={vrTitle}
-              onChange={(e) => handleVR360Change('title', e.target.value)}
-              disabled={savingVR}
-            />
-          </div>
-          
-          {vr360Link && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Eye className="text-slate-600 w-5 h-5" />
-                <h3 className="text-sm font-medium text-slate-700">VR360 Preview</h3>
-              </div>
-              
-              <div className="border-2 border-slate-300 rounded-lg overflow-hidden bg-slate-50">
-                <div className="relative w-full" style={{ height: '500px' }}>
-                  <iframe
-                    src={vr360Link}
-                    className="absolute top-0 left-0 w-full h-full"
-                    allowFullScreen
-                    title="VR360 Preview"
-                    allow="xr-spatial-tracking; gyroscope; accelerometer"
-                  />
-                </div>
-              </div>
-              
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => window.open(vr360Link, '_blank')}
-                  className="px-6 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 transition-colors inline-flex items-center gap-2"
-                >
-                  <Play className="w-4 h-4" />
-                  View Fullscreen
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <VR360SettingsPanel
+          sectionLabel="Menu"
+          value={vr360Settings}
+          scenes={scenes}
+          currentLocale={currentCategoryLocale}
+          locales={supportedLanguages}
+          onLocaleChange={setCurrentCategoryLocale}
+          onChange={(nextValue) => void handleVR360Change(nextValue)}
+          disabled={savingVR}
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">

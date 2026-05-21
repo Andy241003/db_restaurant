@@ -54,7 +54,7 @@ class CRUDAdminUser(CRUDBase[AdminUser, AdminUserCreate, AdminUserUpdate]):
             full_name=obj_in.full_name,
             role=obj_in.role,
             tenant_id=obj_in.tenant_id,
-            # service_access: Removed - Cafe only
+            # service_access: Removed - restaurant-only
             is_active=True
         )
         db.add(db_obj)

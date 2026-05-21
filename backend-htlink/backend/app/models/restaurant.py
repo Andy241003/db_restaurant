@@ -126,6 +126,27 @@ class CafePageSettings(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class VR360Scene(SQLModel, table=True):
+    """
+    Tenant-scoped VR360 scene metadata synced from the tour export.
+    """
+    __tablename__ = "vr360_scenes"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenants.id", index=True)
+    property_id: Optional[int] = Field(default=None, index=True)
+
+    scene_id: str = Field(index=True)
+    scene_name: str
+    scene_subtitle: Optional[str] = None
+    panorama_url: Optional[str] = None
+    display_order: int = 0
+    is_active: bool = True
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 # ==========================================
 # Restaurant Branches
 # ==========================================

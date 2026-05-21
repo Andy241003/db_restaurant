@@ -115,6 +115,49 @@ export interface CafePageSettingsUpdate {
   settings_json?: Record<string, any> | null;
 }
 
+export interface VR360Scene {
+  target_id: string;
+  scene_name: string;
+  scene_subtitle?: string | null;
+  panorama_url?: string | null;
+  display_order: number;
+  is_active: boolean;
+}
+
+export interface VR360SectionSettings {
+  target_id?: string | null;
+  panorama_url?: string | null;
+  vr360_link?: string | null;
+  vr_title?: string | null;
+  title_translations: Record<string, string>;
+}
+
+export interface VR360SettingsResponse {
+  scenes: VR360Scene[];
+  sections: Record<string, VR360SectionSettings>;
+}
+
+export interface VR360SceneSyncInput {
+  id: string;
+  name: string;
+  subtitle?: string | null;
+  panorama_url?: string | null;
+  order?: number | null;
+}
+
+export interface VR360SceneSyncRequest {
+  tenant_code?: string;
+  scenes: VR360SceneSyncInput[];
+}
+
+export interface VR360SceneSyncResponse {
+  tenant_id: number;
+  created: number;
+  updated: number;
+  deactivated: number;
+  scenes: VR360Scene[];
+}
+
 // Translation Types
 export interface Translation {
   locale: string;
@@ -645,6 +688,36 @@ export const cafePageSettingsApi = {
 
   deletePageSetting: async (pageCode: string): Promise<void> => {
     await restaurantClient.delete(`/restaurant/settings/pages/${pageCode}`);
+  },
+};
+
+export const cafeVr360Api = {
+  getScenes: async (): Promise<VR360Scene[]> => {
+    const response = await restaurantClient.get('/vr360/scenes');
+    return response.data;
+  },
+
+  syncScenes: async (data: VR360SceneSyncRequest): Promise<VR360SceneSyncResponse> => {
+    const response = await restaurantClient.post('/vr360/scenes/sync', data);
+    return response.data;
+  },
+
+  getSettings: async (): Promise<VR360SettingsResponse> => {
+    const response = await restaurantClient.get('/vr360/settings');
+    return response.data;
+  },
+
+  getSectionSettings: async (sectionCode: string): Promise<VR360SectionSettings> => {
+    const response = await restaurantClient.get(`/vr360/settings/${sectionCode}`);
+    return response.data;
+  },
+
+  updateSectionSettings: async (
+    sectionCode: string,
+    data: VR360SectionSettings,
+  ): Promise<VR360SectionSettings> => {
+    const response = await restaurantClient.put(`/vr360/settings/${sectionCode}`, data);
+    return response.data;
   },
 };
 export const cafeContactApi = {
@@ -1338,6 +1411,7 @@ export default {
   settings: cafeSettingsApi,
   contact: cafeContactApi,
   pageSettings: cafePageSettingsApi,
+  vr360: cafeVr360Api,
   menu: cafeMenuApi,
   branches: cafeBranchesApi,
   events: cafeEventsApi,
@@ -1366,6 +1440,7 @@ export default {
 export const restaurantSettingsApi = cafeSettingsApi;
 export const restaurantContactApi = cafeContactApi;
 export const restaurantPageSettingsApi = cafePageSettingsApi;
+export const restaurantVr360Api = cafeVr360Api;
 export const restaurantLanguagesApi = cafeLanguagesApi;
 export const restaurantMenuApi = cafeMenuApi;
 export const restaurantBranchesApi = cafeBranchesApi;
@@ -1385,6 +1460,12 @@ export type RestaurantSettings = CafeSettings;
 export type RestaurantSettingsUpdate = CafeSettingsUpdate;
 export type RestaurantPageSettings = CafePageSettings;
 export type RestaurantPageSettingsUpdate = CafePageSettingsUpdate;
+export type RestaurantVR360Scene = VR360Scene;
+export type RestaurantVR360SectionSettings = VR360SectionSettings;
+export type RestaurantVR360SettingsResponse = VR360SettingsResponse;
+export type RestaurantVR360SceneSyncInput = VR360SceneSyncInput;
+export type RestaurantVR360SceneSyncRequest = VR360SceneSyncRequest;
+export type RestaurantVR360SceneSyncResponse = VR360SceneSyncResponse;
 export type RestaurantEvent = CafeEvent;
 export type RestaurantEventCreate = CafeEventCreate;
 export type RestaurantEventUpdate = CafeEventUpdate;

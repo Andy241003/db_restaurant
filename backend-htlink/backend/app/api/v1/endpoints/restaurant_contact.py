@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.core.db import get_db
 from app.api.deps import CurrentUser, SessionDep
 from app.models.restaurant import CafeSettings
+from app.utils.vr360 import _get_normalized_sections_bucket
 
 router = APIRouter()
 
@@ -173,6 +174,17 @@ def update_restaurant_contact(
                 'working_hours': translation_data.get('working_hours', ''),
                 'description': translation_data.get('description', '')
             }
+
+    sections_bucket = _get_normalized_sections_bucket(settings_json)
+    contact_section = sections_bucket.get('contact')
+    if not isinstance(contact_section, dict):
+        contact_section = {}
+    if 'vr360_link' in update_dict:
+        contact_section['vr360_link'] = update_dict['vr360_link']
+    if 'vr_title' in update_dict:
+        contact_section['vr_title'] = update_dict['vr_title']
+    if contact_section:
+        sections_bucket['contact'] = contact_section
     
     # Save updated settings_json
     settings.settings_json = settings_json

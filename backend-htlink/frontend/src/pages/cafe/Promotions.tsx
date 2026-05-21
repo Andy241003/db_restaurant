@@ -20,15 +20,19 @@ import dayjs from 'dayjs';
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
+import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
 import {
     cafeBranchesApi,
     cafeLanguagesApi,
     cafePromotionsApi,
     cafeSettingsApi,
+    restaurantVr360Api,
     type Branch,
     type Promotion,
     type PromotionCreate,
     type PromotionTranslation,
+    type RestaurantVR360Scene,
+    type RestaurantVR360SectionSettings,
 } from '../../services/restaurantApi';
 import { getApiBaseUrl } from '../../utils/api';
 
@@ -172,8 +176,16 @@ const RestaurantPromotions: React.FC = () => {
   const [currentLocale, setCurrentLocale] = useState('vi');
   const [isDisplaying, setIsDisplaying] = useState(true);
   const [savingDisplayStatus, setSavingDisplayStatus] = useState(false);
-  const [vr360Link, setVr360Link] = useState('');
-  const [vrTitle, setVrTitle] = useState('');
+  const [scenes, setScenes] = useState<RestaurantVR360Scene[]>([]);
+  const [vr360Settings, setVr360Settings] = useState<RestaurantVR360SectionSettings>({
+    target_id: null,
+    panorama_url: null,
+    vr360_link: null,
+    vr_title: null,
+    title_translations: {},
+  });
+  const vr360Link = vr360Settings.vr360_link || '';
+  const vrTitle = vr360Settings.vr_title || '';
   const [savingVR, setSavingVR] = useState(false);
   const [promotionFilter, setPromotionFilter] = useState<'all' | 'active' | 'inactive' | 'upcoming' | 'expired'>('all');
   const [editingPromotion, setEditingPromotion] = useState<EditablePromotion | null>(null);
@@ -187,21 +199,29 @@ const RestaurantPromotions: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const [promotionData, languages, settings, branchData] = await Promise.all([
+      const [promotionData, languages, settings, branchData, vr360Data] = await Promise.all([
         cafePromotionsApi.getPromotions(),
         cafeLanguagesApi.getLanguages(),
         cafeSettingsApi.getSettings(),
         cafeBranchesApi.getBranches(),
+        restaurantVr360Api.getSettings(),
       ]);
 
       const locales = languages.length > 0 ? languages.map((item) => item.locale) : ['vi', 'en'];
+      const settingsJson = (settings.settings_json ?? {}) as Record<string, unknown>;
       setSupportedLanguages(locales);
       setCurrentLocale((previous) => (locales.includes(previous) ? previous : locales[0]));
       setPromotions(promotionData);
       setBranches(branchData);
-      setIsDisplaying(settings.settings_json?.promotions_is_displaying ?? true);
-      setVr360Link(settings.settings_json?.promotions_vr360_link || '');
-      setVrTitle(settings.settings_json?.promotions_vr_title || '');
+      setIsDisplaying(settingsJson.promotions_is_displaying ?? true);
+      setScenes(vr360Data.scenes || []);
+      setVr360Settings(vr360Data.sections.promotions || {
+        target_id: null,
+        panorama_url: null,
+        vr360_link: typeof settingsJson.promotions_vr360_link === 'string' ? settingsJson.promotions_vr360_link : null,
+        vr_title: typeof settingsJson.promotions_vr_title === 'string' ? settingsJson.promotions_vr_title : null,
+        title_translations: {},
+      });
     } catch (error: any) {
       toast.error(error.message || 'Failed to load promotions');
     } finally {
@@ -395,22 +415,24 @@ const RestaurantPromotions: React.FC = () => {
     }
   };
 
-  const handleVR360Change = async (field: 'link' | 'title', value: string) => {
+  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings | 'link' | 'title', value?: string) => {
     try {
       setSavingVR(true);
-      const currentSettings = await cafeSettingsApi.getSettings();
-      const updates = { ...currentSettings.settings_json };
-
-      if (field === 'link') {
-        const embedUrl = convertToEmbedUrl(value);
-        updates.promotions_vr360_link = embedUrl;
-        setVr360Link(embedUrl);
-      } else {
-        updates.promotions_vr_title = value;
-        setVrTitle(value);
-      }
-
-      await cafeSettingsApi.updateSettings({ settings_json: updates });
+      const resolvedSettings: RestaurantVR360SectionSettings = typeof nextSettings === 'string'
+        ? {
+            ...vr360Settings,
+            vr360_link: nextSettings === 'link' ? convertToEmbedUrl(value || '') || null : vr360Settings.vr360_link,
+            vr_title: nextSettings === 'title' ? value || null : vr360Settings.vr_title,
+          }
+        : nextSettings;
+      setVr360Settings(resolvedSettings);
+      await restaurantVr360Api.updateSectionSettings('promotions', {
+        target_id: resolvedSettings.target_id || null,
+        panorama_url: resolvedSettings.panorama_url || null,
+        vr360_link: resolvedSettings.vr360_link || null,
+        vr_title: resolvedSettings.vr_title || null,
+        title_translations: resolvedSettings.title_translations || {},
+      });
       toast.success('VR360 settings saved');
     } catch (error: any) {
       toast.error(error.message || 'Failed to save VR settings');
@@ -470,7 +492,17 @@ const RestaurantPromotions: React.FC = () => {
           <FontAwesomeIcon icon={faVrCardboard} className="text-xl text-purple-600" />
           <h2 className="text-xl font-bold text-slate-800">VR360 Settings</h2>
         </div>
-        <div className="space-y-6">
+        <VR360SettingsPanel
+          sectionLabel="Promotions"
+          value={vr360Settings}
+          scenes={scenes}
+          currentLocale={currentLocale}
+          locales={supportedLanguages}
+          onLocaleChange={setCurrentLocale}
+          onChange={(nextValue) => void handleVR360Change(nextValue)}
+          disabled={savingVR}
+        />
+        <div className="hidden space-y-6">
           <div>
             <label className={LABEL_CLASS}>VR360 Link</label>
             <input type="url" className={FIELD_CLASS} value={vr360Link} onChange={(e) => void handleVR360Change('link', e.target.value)} placeholder="https://example.com/panorama.jpg or https://youtube.com/watch?v=..." disabled={savingVR} />

@@ -1,7 +1,7 @@
 [project]
 name = "app"
 version = "0.1.0"
-description = "HotelLink 360 SaaS Backend"
+description = "VR Restaurant Backend"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.104.0",
