@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
 import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
+import { useDebouncedVr360Autosave } from '../../hooks/useDebouncedVr360Autosave';
 import {
     restaurantBranchesApi,
     restaurantEventsApi,
@@ -161,7 +162,18 @@ const RestaurantEvents: React.FC = () => {
     vr_title: null,
     title_translations: {},
   });
-  const [savingVR, setSavingVR] = useState(false);
+  const { saving: savingVR, scheduleSave: scheduleVr360Save } = useDebouncedVr360Autosave({
+    onSave: (settings) =>
+      restaurantVr360Api.updateSectionSettings('events', {
+        target_id: settings.target_id || null,
+        panorama_url: settings.panorama_url || null,
+        vr360_link: settings.vr360_link || null,
+        vr_title: settings.vr_title || null,
+        title_translations: settings.title_translations || {},
+      }),
+    onErrorMessage: 'Failed to save VR settings',
+    getErrorMessage: (error: any) => error?.response?.data?.detail,
+  });
   const [eventFilter, setEventFilter] = useState<'all' | EventStatus>('all');
   const [editingEvent, setEditingEvent] = useState<EditableEvent | null>(null);
   const [savingEvent, setSavingEvent] = useState(false);
@@ -408,23 +420,9 @@ const RestaurantEvents: React.FC = () => {
     }
   };
 
-  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings) => {
-    try {
-      setSavingVR(true);
-      setVr360Settings(nextSettings);
-      await restaurantVr360Api.updateSectionSettings('events', {
-        target_id: nextSettings.target_id || null,
-        panorama_url: nextSettings.panorama_url || null,
-        vr360_link: nextSettings.vr360_link || null,
-        vr_title: nextSettings.vr_title || null,
-        title_translations: nextSettings.title_translations || {},
-      });
-      toast.success('VR360 settings saved');
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to save VR settings');
-    } finally {
-      setSavingVR(false);
-    }
+  const handleVR360Change = (nextSettings: RestaurantVR360SectionSettings) => {
+    setVr360Settings(nextSettings);
+    scheduleVr360Save(nextSettings);
   };
 
   const handleDisplayStatusChange = async (nextValue: boolean) => {

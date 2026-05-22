@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
 import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
+import { useDebouncedVr360Autosave } from '../../hooks/useDebouncedVr360Autosave';
 import {
     cafeBranchesApi,
     cafeCareersApi,
@@ -157,7 +158,18 @@ const RestaurantCareers: React.FC = () => {
     vr_title: null,
     title_translations: {},
   });
-  const [savingVR, setSavingVR] = useState(false);
+  const { saving: savingVR, scheduleSave: scheduleVr360Save } = useDebouncedVr360Autosave({
+    onSave: (settings) =>
+      restaurantVr360Api.updateSectionSettings('careers', {
+        target_id: settings.target_id || null,
+        panorama_url: settings.panorama_url || null,
+        vr360_link: settings.vr360_link || null,
+        vr_title: settings.vr_title || null,
+        title_translations: settings.title_translations || {},
+      }),
+    onErrorMessage: 'Failed to save VR settings',
+    getErrorMessage: (error: any) => error?.response?.data?.detail,
+  });
   const vr360Link = vr360Settings.vr360_link || '';
   const vrTitle = vr360Settings.vr_title || '';
   const [careerFilter, setCareerFilter] = useState<'all' | CareerStatus>('all');
@@ -395,40 +407,16 @@ const RestaurantCareers: React.FC = () => {
     setEditingCareer((previous) => (previous ? { ...previous, primary_image_media_id: mediaId } : previous));
   };
 
-  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings | 'link' | 'title', value?: string) => {
-    try {
-      setSavingVR(true);
-      if (typeof nextSettings === 'string') {
-        const legacyNextSettings: RestaurantVR360SectionSettings = {
+  const handleVR360Change = (nextSettings: RestaurantVR360SectionSettings | 'link' | 'title', value?: string) => {
+    const resolvedSettings: RestaurantVR360SectionSettings = typeof nextSettings === 'string'
+      ? {
           ...vr360Settings,
           vr360_link: nextSettings === 'link' ? value || null : vr360Settings.vr360_link,
           vr_title: nextSettings === 'title' ? value || null : vr360Settings.vr_title,
-        };
-        setVr360Settings(legacyNextSettings);
-        await restaurantVr360Api.updateSectionSettings('careers', {
-          target_id: legacyNextSettings.target_id || null,
-          panorama_url: legacyNextSettings.panorama_url || null,
-          vr360_link: legacyNextSettings.vr360_link || null,
-          vr_title: legacyNextSettings.vr_title || null,
-          title_translations: legacyNextSettings.title_translations || {},
-        });
-        toast.success('VR360 settings saved');
-        return;
-      }
-      setVr360Settings(nextSettings);
-      await restaurantVr360Api.updateSectionSettings('careers', {
-        target_id: nextSettings.target_id || null,
-        panorama_url: nextSettings.panorama_url || null,
-        vr360_link: nextSettings.vr360_link || null,
-        vr_title: nextSettings.vr_title || null,
-        title_translations: nextSettings.title_translations || {},
-      });
-      toast.success('VR360 settings saved');
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to save VR settings');
-    } finally {
-      setSavingVR(false);
-    }
+        }
+      : nextSettings;
+    setVr360Settings(resolvedSettings);
+    scheduleVr360Save(resolvedSettings);
   };
 
   const handleDisplayStatusChange = async (nextValue: boolean) => {

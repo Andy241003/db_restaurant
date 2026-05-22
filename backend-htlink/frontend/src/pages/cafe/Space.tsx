@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import MediaPickerModal from '../../components/MediaPickerModal';
 import VR360SettingsPanel from '../../components/common/VR360SettingsPanel';
+import { useDebouncedVr360Autosave } from '../../hooks/useDebouncedVr360Autosave';
 import type { RestaurantVR360Scene, RestaurantVR360SectionSettings, Space, SpaceTranslation } from '../../services/restaurantApi';
 import { cafeLanguagesApi, cafeSettingsApi, cafeSpacesApi, restaurantVr360Api } from '../../services/restaurantApi';
 import { getApiBaseUrl } from '../../utils/api';
@@ -44,7 +45,18 @@ const RestaurantSpace: React.FC = () => {
   });
   const vr360Link = vr360Settings.vr360_link || '';
   const vrTitle = vr360Settings.vr_title || '';
-  const [savingVR, setSavingVR] = useState(false);
+  const { saving: savingVR, scheduleSave: scheduleVr360Save } = useDebouncedVr360Autosave({
+    onSave: (settings) =>
+      restaurantVr360Api.updateSectionSettings('spaces', {
+        target_id: settings.target_id || null,
+        panorama_url: settings.panorama_url || null,
+        vr360_link: settings.vr360_link || null,
+        vr_title: settings.vr_title || null,
+        title_translations: settings.title_translations || {},
+      }),
+    onErrorMessage: 'Failed to save VR settings',
+    getErrorMessage: (error: any) => error?.response?.data?.detail,
+  });
   const [mediaPickerVisible, setMediaPickerVisible] = useState(false);
   const [draggingSpaceId, setDraggingSpaceId] = useState<number | null>(null);
   const [reordering, setReordering] = useState(false);
@@ -366,30 +378,16 @@ const RestaurantSpace: React.FC = () => {
     return url;
   };
 
-  const handleVR360Change = async (nextSettings: RestaurantVR360SectionSettings | 'link' | 'title', value?: string) => {
-    try {
-      setSavingVR(true);
-      const resolvedSettings: RestaurantVR360SectionSettings = typeof nextSettings === 'string'
-        ? {
-            ...vr360Settings,
-            vr360_link: nextSettings === 'link' ? convertToEmbedUrl(value || '') || null : vr360Settings.vr360_link,
-            vr_title: nextSettings === 'title' ? value || null : vr360Settings.vr_title,
-          }
-        : nextSettings;
-      setVr360Settings(resolvedSettings);
-      await restaurantVr360Api.updateSectionSettings('spaces', {
-        target_id: resolvedSettings.target_id || null,
-        panorama_url: resolvedSettings.panorama_url || null,
-        vr360_link: resolvedSettings.vr360_link || null,
-        vr_title: resolvedSettings.vr_title || null,
-        title_translations: resolvedSettings.title_translations || {},
-      });
-      toast.success('VR360 settings saved');
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to save VR settings');
-    } finally {
-      setSavingVR(false);
-    }
+  const handleVR360Change = (nextSettings: RestaurantVR360SectionSettings | 'link' | 'title', value?: string) => {
+    const resolvedSettings: RestaurantVR360SectionSettings = typeof nextSettings === 'string'
+      ? {
+          ...vr360Settings,
+          vr360_link: nextSettings === 'link' ? convertToEmbedUrl(value || '') || null : vr360Settings.vr360_link,
+          vr_title: nextSettings === 'title' ? value || null : vr360Settings.vr_title,
+        }
+      : nextSettings;
+    setVr360Settings(resolvedSettings);
+    scheduleVr360Save(resolvedSettings);
   };
   const currentTranslation = useMemo(
     () => editingSpace?.translations[currentLocale] || { name: '', description: '' },
