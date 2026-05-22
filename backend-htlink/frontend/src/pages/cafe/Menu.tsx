@@ -713,7 +713,6 @@ const RestaurantMenu: React.FC = () => {
           locales={supportedLanguages}
           onLocaleChange={setCurrentCategoryLocale}
           onChange={(nextValue) => void handleVR360Change(nextValue)}
-          disabled={savingVR}
         />
       </div>
 

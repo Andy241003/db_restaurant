@@ -454,7 +454,6 @@ const RestaurantSpace: React.FC = () => {
           locales={supportedLanguages}
           onLocaleChange={setCurrentLocale}
           onChange={(nextValue) => void handleVR360Change(nextValue)}
-          disabled={savingVR}
         />
         <div className="hidden space-y-6">
           <div>
@@ -465,7 +464,6 @@ const RestaurantSpace: React.FC = () => {
               value={vr360Link}
               onChange={(e) => void handleVR360Change('link', e.target.value)}
               placeholder="https://example.com/panorama.jpg or https://youtube.com/watch?v=..."
-              disabled={savingVR}
             />
             <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
               <FontAwesomeIcon icon={faCircleInfo} className="mt-0.5 text-slate-500" />
@@ -480,7 +478,6 @@ const RestaurantSpace: React.FC = () => {
               value={vrTitle}
               onChange={(e) => void handleVR360Change('title', e.target.value)}
               placeholder="Enter VR tour title"
-              disabled={savingVR}
             />
           </div>
           {vr360Link && (

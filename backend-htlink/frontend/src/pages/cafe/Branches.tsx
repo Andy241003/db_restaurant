@@ -788,7 +788,6 @@ const RestaurantBranches: React.FC = () => {
           locales={supportedLanguages}
           onLocaleChange={setCurrentLang}
           onChange={(nextValue) => void handleVR360Change(nextValue)}
-          disabled={savingVR}
         />
         <div className="hidden space-y-6">
           <div>
@@ -801,7 +800,6 @@ const RestaurantBranches: React.FC = () => {
               className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
               value={vr360Link}
               onChange={(e) => handleVR360Change('link', e.target.value)}
-              disabled={savingVR}
             />
             <p className="mt-2 text-sm text-slate-500 flex items-start gap-2">
               <FontAwesomeIcon icon={faCircleInfo} className="mt-0.5" />
@@ -819,7 +817,6 @@ const RestaurantBranches: React.FC = () => {
               className="w-full px-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
               value={vrTitle}
               onChange={(e) => handleVR360Change('title', e.target.value)}
-              disabled={savingVR}
             />
           </div>
           

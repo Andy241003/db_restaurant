@@ -17,7 +17,7 @@ interface UseDebouncedVr360AutosaveResult {
 }
 
 export const useDebouncedVr360Autosave = ({
-  delayMs = 800,
+  delayMs = 1500,
   onSave,
   onSuccessMessage = 'VR360 settings saved',
   onErrorMessage = 'Failed to save VR360 settings',
@@ -32,12 +32,12 @@ export const useDebouncedVr360Autosave = ({
       clearTimeout(timeoutRef.current);
     }
 
-    setSaving(true);
     timeoutRef.current = window.setTimeout(() => {
       const requestId = ++saveRequestIdRef.current;
 
       void (async () => {
         try {
+          setSaving(true);
           await onSave(settings);
           if (requestId === saveRequestIdRef.current) {
             toast.success(onSuccessMessage);

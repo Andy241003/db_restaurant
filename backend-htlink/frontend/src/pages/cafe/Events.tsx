@@ -491,7 +491,6 @@ const RestaurantEvents: React.FC = () => {
           locales={supportedLanguages}
           onLocaleChange={setCurrentLocale}
           onChange={(nextValue) => void handleVR360Change(nextValue)}
-          disabled={savingVR}
         />
       </div>
 

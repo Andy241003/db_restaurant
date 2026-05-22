@@ -499,12 +499,11 @@ const RestaurantPromotions: React.FC = () => {
           locales={supportedLanguages}
           onLocaleChange={setCurrentLocale}
           onChange={(nextValue) => void handleVR360Change(nextValue)}
-          disabled={savingVR}
         />
         <div className="hidden space-y-6">
           <div>
             <label className={LABEL_CLASS}>VR360 Link</label>
-            <input type="url" className={FIELD_CLASS} value={vr360Link} onChange={(e) => void handleVR360Change('link', e.target.value)} placeholder="https://example.com/panorama.jpg or https://youtube.com/watch?v=..." disabled={savingVR} />
+            <input type="url" className={FIELD_CLASS} value={vr360Link} onChange={(e) => void handleVR360Change('link', e.target.value)} placeholder="https://example.com/panorama.jpg or https://youtube.com/watch?v=..." />
             <p className="mt-2 flex items-start gap-2 text-sm text-slate-500">
               <FontAwesomeIcon icon={faCircleInfo} className="mt-0.5 text-slate-500" />
               <span>Enter the URL to a 360� panorama image or YouTube video URL.</span>
@@ -512,7 +511,7 @@ const RestaurantPromotions: React.FC = () => {
           </div>
           <div>
             <label className={LABEL_CLASS}>VR360 Title</label>
-            <input type="text" className={FIELD_CLASS} value={vrTitle} onChange={(e) => void handleVR360Change('title', e.target.value)} placeholder="Enter VR tour title" disabled={savingVR} />
+            <input type="text" className={FIELD_CLASS} value={vrTitle} onChange={(e) => void handleVR360Change('title', e.target.value)} placeholder="Enter VR tour title" />
           </div>
           {vr360Link && (
             <div>
